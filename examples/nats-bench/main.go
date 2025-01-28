@@ -14,9 +14,11 @@
 package main
 
 import (
+	"crypto/rand"
 	"flag"
 	"fmt"
 	"log"
+	mrand "math/rand"
 	"os"
 	"sync"
 	"time"
@@ -99,6 +101,12 @@ func main() {
 	if *tls {
 		opts = append(opts, nats.Secure(nil))
 	}
+	opts = append(opts, nats.Compression(true))
+	opts = append(opts, nats.PingInterval(1*time.Millisecond))
+	opts = append(opts, nats.MaxPingsOutstanding(1000))
+	opts = append(opts, nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
+		fmt.Printf("disconnected from nats! Reason: %v\n", err)
+	}))
 
 	benchmark = bench.NewBenchmark("NATS", *numSubs, *numPubs)
 
@@ -154,14 +162,18 @@ func runPublisher(nc *nats.Conn, startwg, donewg *sync.WaitGroup, numMsgs int, m
 
 	args := flag.Args()
 	subj := args[0]
-	var msg []byte
-	if msgSize > 0 {
-		msg = make([]byte, msgSize)
-	}
 
 	start := time.Now()
 
 	for i := 0; i < numMsgs; i++ {
+		var msg []byte
+		if msgSize > 0 {
+			msg = make([]byte, mrand.Intn(2000))
+			rand.Read(msg)
+		} else {
+
+			rand.Read(msg)
+		}
 		nc.Publish(subj, msg)
 	}
 	nc.Flush()
